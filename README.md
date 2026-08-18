@@ -95,11 +95,6 @@ Riverdeck's whole point is honesty:
 - Opponent decisions come purely from **hand equity + pot odds**, so outcomes are
   neither rigged for nor against you.
 
-## Rename it
-
-Riverdeck is a placeholder name — it's your project. To rebrand, change the title
-and heading in `index.html`, the header comment in `game.js`, and the `name` in
-`package.json`.
 
 ## Disclaimer
 
@@ -108,4 +103,4 @@ product and involves no real currency.
 
 ## License
 
-[MIT](LICENSE) © 2026 Your Name
+[MIT](LICENSE) © 2026 Sushrut Ganapati Kane
