@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Riverdeck — a fair, honest browser poker game against five opponents. One cryptographic shuffle per hand, real hand rankings, equity-based AI, no rigging." />
+  <meta name="theme-color" content="#0b3d2e" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Riverdeck" />
+  <title>Riverdeck — Fair Poker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='52' font-size='78' text-anchor='middle' dominant-baseline='central'%3E%E2%99%A0%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">&spades;</span>
+        <div class="brand-text">
+          <h1>Riverdeck</h1>
+          <p class="tagline">Fair-dealt poker &middot; 6 players &middot; one honest shuffle per hand</p>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- 5 AI opponents -->
+      <section id="opponents" class="opponents" aria-label="Opponents"></section>
+
+      <!-- Community cards + pot -->
+      <section class="felt">
+        <div class="felt-top">
+          <span id="stage-label" class="stage">Pre-Flop</span>
+          <span id="pot" class="pot">Pot: 0</span>
+        </div>
+        <div id="community" class="community"></div>
+        <div id="message" class="message" role="status"></div>
+      </section>
+
+      <!-- The human player -->
+      <section id="human" class="seat human">
+        <div id="human-cards" class="cards big"></div>
+        <div id="human-hand" class="hand-name"></div>
+        <div id="human-info" class="human-info"></div>
+      </section>
+
+      <!-- Action log -->
+      <section class="log-wrap">
+        <h2>Table log</h2>
+        <div id="log" class="log" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <!-- Sticky action bar: always within thumb reach on phones -->
+    <div class="actionbar">
+      <div id="turn-status" class="turn-status" aria-live="polite"></div>
+
+      <!-- Action controls (shown only on your turn) -->
+      <section id="controls" class="controls" style="display:none;">
+        <div id="raise-area" class="raise-area">
+          <input type="range" id="raise-slider" aria-label="Raise amount" />
+          <input type="number" id="raise-input" aria-label="Raise amount" inputmode="numeric" />
+          <button id="btn-raise" class="btn raise">Raise to</button>
+        </div>
+        <button id="btn-fold" class="btn fold">Fold</button>
+        <button id="btn-check-call" class="btn call" data-mode="check">Check</button>
+        <button id="btn-allin" class="btn allin">All-In</button>
+      </section>
+
+      <div class="table-buttons">
+        <button id="btn-next-hand" class="btn next" style="display:none;">Deal Next Hand</button>
+        <button id="btn-new-game" class="btn newgame" style="display:none;">New Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load in dependency order; plain scripts so it runs from a file:// path. -->
+  <script src="deck.js"></script>
+  <script src="evaluator.js"></script>
+  <script src="ai.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
