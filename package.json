@@ -16,5 +16,8 @@
     "vanilla-js",
     "no-build"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
 }

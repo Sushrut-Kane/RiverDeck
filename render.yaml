@@ -10,9 +10,9 @@
 services:
   - type: web
     name: riverdeck
-    env: node
+    runtime: node
     plan: free
-    buildCommand: ""
+    buildCommand: npm install
     startCommand: node server.js
     autoDeploy: true
     envVars:
