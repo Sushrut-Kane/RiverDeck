@@ -16,6 +16,7 @@
 
   const Online = { active: false, code: null, token: null, version: 0, view: null, polling: false };
   window.Online = Online;
+  let shareLine = null; // cached once per page load
 
   const ERRORS = {
     no_room: 'Room not found.',
@@ -160,10 +161,30 @@
     renderGame(view);
   }
 
+  // Tell the host the exact address a friend should open to reach this table.
+  function updateShare() {
+    const el = $('room-share');
+    if (!el) return;
+    if (shareLine !== null) { el.innerHTML = shareLine; return; }
+    const host = location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      fetch('/api/info').then(r => r.json()).then(info => {
+        shareLine = info.lanUrl
+          ? `On the same Wi-Fi? Friends open <b>${info.lanUrl}</b> and enter the code.`
+          : 'To play with friends elsewhere, put the server online (see README).';
+        el.innerHTML = shareLine;
+      }).catch(() => {});
+    } else {
+      shareLine = `Friends open <b>${location.origin}</b> and enter the code.`;
+      el.innerHTML = shareLine;
+    }
+  }
+
   function renderRoom(view) {
     showOverlay();
     showPanel('lobby-room');
     $('room-code').textContent = view.code;
+    updateShare();
     const list = $('room-players');
     list.innerHTML = '';
     const names = (view.lobby && view.lobby.players) || [];

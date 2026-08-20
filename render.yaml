@@ -1,0 +1,20 @@
+# Deploy Riverdeck's online server to Render (free) so friends anywhere can play.
+#
+# One-time setup:
+#   1. Go to https://render.com and sign in with GitHub.
+#   2. New +  ->  Blueprint  ->  pick the RiverDeck repo  ->  Apply.
+#   3. Render gives you a public URL like https://riverdeck.onrender.com
+#      Open it, share the game code, and friends join from anywhere.
+#
+# No database, no secrets, no build step — it just runs server.js.
+services:
+  - type: web
+    name: riverdeck
+    env: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.js
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

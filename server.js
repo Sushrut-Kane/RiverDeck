@@ -18,6 +18,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const os = require('os');
 const engine = require('./engine');
 
 const PORT = process.env.PORT || 3000;
@@ -71,6 +72,24 @@ setInterval(reapRooms, 10 * 60 * 1000).unref();
 
 // ---- HTTP helpers ----------------------------------------------------------
 
+// Best guess at the address friends on the same Wi-Fi would use to reach us.
+// Prefers a real network card over virtual ones (Hyper-V, WSL, VMware).
+function lanAddress() {
+  const ifaces = os.networkInterfaces();
+  let best = null;
+  for (const name of Object.keys(ifaces)) {
+    for (const net of ifaces[name] || []) {
+      if (net.family !== 'IPv4' || net.internal) continue;
+      if (net.address.startsWith('169.254.')) continue;
+      const isPrivate = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(net.address);
+      const isVirtual = /vEthernet|VMware|VirtualBox|Hyper-V|Loopback|WSL/i.test(name);
+      const score = (isVirtual ? 0 : 2) + (isPrivate ? 1 : 0);
+      if (!best || score > best.score) best = { address: net.address, score };
+    }
+  }
+  return best ? best.address : null;
+}
+
 function sendJSON(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -120,6 +139,11 @@ function serveStatic(req, res, pathname) {
 
 async function handleApi(req, res, pathname, query) {
   const mark = code => { const r = rooms.get(normalizeCode(code)); if (r) r.lastActivity = Date.now(); };
+
+  if (req.method === 'GET' && pathname === '/api/info') {
+    const ip = lanAddress();
+    return sendJSON(res, 200, { lanUrl: ip ? `http://${ip}:${PORT}` : null, port: PORT });
+  }
 
   if (req.method === 'GET' && pathname === '/api/state') {
     const room = rooms.get(normalizeCode(query.code));
@@ -196,5 +220,8 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Riverdeck server running at http://localhost:${PORT}`);
+  const ip = lanAddress();
+  console.log('Riverdeck server running:');
+  console.log(`  On this computer:  http://localhost:${PORT}`);
+  if (ip) console.log(`  On your network:   http://${ip}:${PORT}   (for friends on the same Wi-Fi)`);
 });

@@ -77,12 +77,24 @@ share it. Anyone who opens the same server URL and types the same code joins you
 table; leftover seats become AI. Rooms live in memory on the server — no database,
 no accounts.
 
+- **On Windows**, you can just **double-click `start-server.cmd`** instead of using
+  a terminal. Keep the window it opens running while you play.
+- **On the same Wi-Fi?** The room screen shows the exact `http://…` address to give
+  friends — they open that and type the code.
+- **Friends somewhere else?** Put the server online (see **Deploy** below).
+
 ## Deploy
 
-**Online multiplayer** needs a long-running Node process (for the in-memory rooms
-and long-polling), so run `server.js` on a Node host such as Render, Railway,
-Fly.io, or any VPS (`node server.js`, then expose the port). Vercel's static
-hosting is great for **solo** play but does not run the room server.
+**Play with friends over the internet** by putting the server on a free, always-on
+host. This repo includes a **[`render.yaml`](render.yaml)** blueprint for
+[Render](https://render.com):
+
+1. Sign in to Render with GitHub.
+2. **New + → Blueprint →** pick the RiverDeck repo → **Apply**.
+3. Open the public URL Render gives you, share the game code, and friends join
+   from anywhere. (Railway, Fly.io, or any VPS work too — just run `node server.js`.)
+
+Vercel's static hosting is great for **solo** play but can't run the room server.
 
 ### Static (solo) on Vercel
 
