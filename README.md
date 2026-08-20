@@ -1,16 +1,23 @@
 # ♠ Riverdeck
 
-**Fair-dealt poker in your browser.** You against five opponents, played honestly:
-one cryptographic shuffle per hand, real hand rankings, and AI that decides from
-its *own* cards — never yours, never the deck, never rigged.
+**Fair-dealt poker in your browser.** Play solo against five honest AI opponents,
+or **online with friends** — share a game code, and anyone who enters it joins your
+table (any empty seats fill with AI). One cryptographic shuffle per hand, real hand
+rankings, and AI that decides from its *own* cards — never yours, never the deck,
+never rigged.
 
-No accounts, no money, no tracking, no build step. Just open it and play.
+No accounts, no sign-in, no money, no tracking. Open `index.html` to play solo, or
+run the tiny server to play with friends.
 
 ---
 
 ## Features
 
 - **Six-handed poker** — you plus five computer opponents.
+- **Online multiplayer** — pick *Play with friends*, share a **game code**, and
+  friends who type the same code sit at your table. Empty seats are filled with
+  AI, so one friend (or none) is enough to start. No accounts or sign-in — just a
+  code, saved server-side for the life of the room.
 - **Provably fair dealing** — a single Fisher–Yates shuffle per hand driven by
   `crypto.getRandomValues` (with rejection sampling, so no modulo bias). Cards are
   dealt once and never changed or peeked at.
@@ -34,7 +41,9 @@ No accounts, no money, no tracking, no build step. Just open it and play.
 
 ## Tech
 
-Plain **HTML + CSS + vanilla JavaScript**. Zero dependencies, zero build tooling.
+Plain **HTML + CSS + vanilla JavaScript**, zero build tooling. Solo play has **zero
+dependencies** and runs from `file://`. Online play adds a **dependency-free Node
+server** (`server.js`) that uses only Node's built-in modules.
 
 | File | Purpose |
 |------|---------|
@@ -43,21 +52,39 @@ Plain **HTML + CSS + vanilla JavaScript**. Zero dependencies, zero build tooling
 | `deck.js`      | Cards, fair 52-card deck, unbiased shuffle |
 | `evaluator.js` | 5- and 7-card hand ranking |
 | `ai.js`        | Equity-based opponent decisions |
-| `game.js`      | Game engine + rendering |
+| `cards-ui.js`  | Shared card dealing / reveal animations |
+| `game.js`      | Offline game engine + rendering |
+| `online.js`    | Lobby + online table (client) |
+| `server.js`    | Tiny HTTP + JSON API server for online rooms |
+| `engine.js`    | Server-side multiplayer poker engine |
+| `shared-node.js` | Loads `deck`/`evaluator`/`ai` for the server, unchanged |
 
 ## Run locally
 
-The app runs straight from the filesystem — **just open `index.html`** in any
-modern browser (double-click it, or drag it into a browser window).
+**Solo (offline):** just open `index.html` in any modern browser (double-click it,
+or drag it into a browser window) and choose **Play vs AI · offline**.
 
-Prefer a local server? With Node installed:
+**Online with friends:** run the built-in server (Node 18+), then open the printed
+URL:
 
 ```bash
-npx serve .
-# then open the printed http://localhost:3000
+node server.js
+# Riverdeck server running at http://localhost:3000
 ```
 
-## Deploy to Vercel
+Choose **Play with friends · online**, enter a **game code** (make one up), and
+share it. Anyone who opens the same server URL and types the same code joins your
+table; leftover seats become AI. Rooms live in memory on the server — no database,
+no accounts.
+
+## Deploy
+
+**Online multiplayer** needs a long-running Node process (for the in-memory rooms
+and long-polling), so run `server.js` on a Node host such as Render, Railway,
+Fly.io, or any VPS (`node server.js`, then expose the port). Vercel's static
+hosting is great for **solo** play but does not run the room server.
+
+### Static (solo) on Vercel
 
 This is a static site, so Vercel needs **no build**.
 
@@ -101,6 +128,8 @@ Riverdeck's whole point is honesty:
   undealt deck.
 - Opponent decisions come purely from **hand equity + pot odds**, so outcomes are
   neither rigged for nor against you.
+- **Online, the server sends each player only their own hole cards** — never
+  anyone else's — until showdown, so the same fairness holds across the network.
 
 ## Rename it
 

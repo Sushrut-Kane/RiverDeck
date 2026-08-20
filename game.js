@@ -663,13 +663,7 @@ function renderOpponents() {
 function renderBoard() {
   document.getElementById('stage-label').textContent = game.stage;
   document.getElementById('pot').textContent = `Pot: ${game.pot}`;
-  const board = document.getElementById('community');
-  board.innerHTML = '';
-  for (let i = 0; i < 5; i++) {
-    board.innerHTML += game.community[i]
-      ? cardHTML(game.community[i], false)
-      : '<div class="card placeholder"></div>';
-  }
+  CardsUI.syncBoard(document.getElementById('community'), game.community);
 }
 
 function renderHuman() {
@@ -679,8 +673,7 @@ function renderHuman() {
   box.classList.toggle('folded', p.folded && !p.out);
   box.classList.toggle('out', p.out);
 
-  document.getElementById('human-cards').innerHTML =
-    `${cardHTML(p.hole[0], p.out)}${cardHTML(p.hole[1], p.out)}`;
+  CardsUI.syncHole(document.getElementById('human-cards'), p.out ? [] : p.hole, { faceDown: false, handKey: game.handNumber });
 
   let handText = '';
   if (!p.out && p.hole.length === 2 && game.community.length >= 3) {
@@ -772,38 +765,49 @@ function hideHumanControls() {
 }
 
 function readRaiseTotal() {
-  const player = game.human;
-  const maxTotal = player.chips + player.bet;
-  let minRaiseTotal = game.currentBet + game.minRaise;
-  if (minRaiseTotal > maxTotal) minRaiseTotal = maxTotal;
-  let value = parseInt(document.getElementById('raise-input').value, 10);
-  if (isNaN(value)) value = minRaiseTotal;
-  value = Math.max(minRaiseTotal, Math.min(maxTotal, value));
+  const input = document.getElementById('raise-input');
+  const min = parseInt(input.min, 10);
+  const max = parseInt(input.max, 10);
+  let value = parseInt(input.value, 10);
+  if (isNaN(value)) value = isNaN(min) ? 0 : min;
+  if (!isNaN(min)) value = Math.max(min, value);
+  if (!isNaN(max)) value = Math.min(max, value);
   return value;
+}
+
+// Route a human's button press to whichever game is running (local or online).
+function dispatchIntent(intent) {
+  if (window.Online && window.Online.active) {
+    window.Online.act(intent);
+    return;
+  }
+  if (intent.action === 'allin') {
+    const player = game.human;
+    const maxTotal = player.chips + player.bet;
+    submitHumanAction(maxTotal > game.currentBet
+      ? { action: 'raise', amount: maxTotal }
+      : { action: 'call' }); // short all-in call
+    return;
+  }
+  submitHumanAction(intent);
 }
 
 function wireControls() {
   document.getElementById('btn-fold').addEventListener('click', () => {
-    submitHumanAction({ action: 'fold' });
+    dispatchIntent({ action: 'fold' });
   });
 
   document.getElementById('btn-check-call').addEventListener('click', e => {
     const mode = e.currentTarget.dataset.mode;
-    submitHumanAction({ action: mode === 'check' ? 'check' : 'call' });
+    dispatchIntent({ action: mode === 'check' ? 'check' : 'call' });
   });
 
   document.getElementById('btn-raise').addEventListener('click', () => {
-    submitHumanAction({ action: 'raise', amount: readRaiseTotal() });
+    dispatchIntent({ action: 'raise', amount: readRaiseTotal() });
   });
 
   document.getElementById('btn-allin').addEventListener('click', () => {
-    const player = game.human;
-    const maxTotal = player.chips + player.bet;
-    if (maxTotal > game.currentBet) {
-      submitHumanAction({ action: 'raise', amount: maxTotal });
-    } else {
-      submitHumanAction({ action: 'call' }); // short all-in call
-    }
+    dispatchIntent({ action: 'allin' });
   });
 
   const slider = document.getElementById('raise-slider');
@@ -811,11 +815,24 @@ function wireControls() {
   slider.addEventListener('input', () => { numberInput.value = slider.value; });
   numberInput.addEventListener('input', () => { slider.value = numberInput.value; });
 
-  document.getElementById('btn-next-hand').addEventListener('click', nextHand);
-  document.getElementById('btn-new-game').addEventListener('click', newGame);
+  document.getElementById('btn-next-hand').addEventListener('click', () => {
+    if (window.Online && window.Online.active) { window.Online.next(); return; }
+    nextHand();
+  });
+  document.getElementById('btn-new-game').addEventListener('click', () => {
+    if (window.Online && window.Online.active) { window.Online.leave(); return; }
+    newGame();
+  });
 }
+
+// Offline "vs AI" game, launched from the lobby's start screen.
+function startSolo() {
+  newGame();
+}
+window.startSolo = startSolo;
 
 window.addEventListener('DOMContentLoaded', () => {
   wireControls();
-  newGame();
+  if (window.Lobby && window.Lobby.show) window.Lobby.show();
+  else newGame();
 });

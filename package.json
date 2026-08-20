@@ -4,9 +4,9 @@
   "private": true,
   "description": "Riverdeck — a fair, honest browser poker game against five opponents. One cryptographic shuffle per hand, real hand rankings, equity-based AI, no rigging.",
   "scripts": {
-    "start": "npx --yes serve .",
-    "dev": "npx --yes serve .",
-    "test": "node test-harness.js"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test-harness.js && node engine-test.js"
   },
   "keywords": [
     "poker",

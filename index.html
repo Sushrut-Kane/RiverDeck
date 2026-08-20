@@ -82,10 +82,53 @@
     </div>
   </div>
 
+  <!-- Start screen: play offline vs AI, or join an online table by game code. -->
+  <div id="lobby" class="lobby-overlay">
+    <div class="lobby-card">
+      <div class="lobby-brand"><span class="brand-mark">&spades;</span><h2>Riverdeck</h2></div>
+
+      <div id="lobby-choose" class="lobby-panel">
+        <p class="lobby-lead">A fair deal, every hand.</p>
+        <button id="lobby-solo" class="btn call lobby-btn">Play vs AI &middot; offline</button>
+        <button id="lobby-online-btn" class="btn raise lobby-btn">Play with friends &middot; online</button>
+      </div>
+
+      <div id="lobby-online" class="lobby-panel" hidden>
+        <label class="lobby-field">Your name
+          <input id="lobby-name" type="text" maxlength="16" placeholder="Player" autocomplete="off" />
+        </label>
+        <label class="lobby-field">Game code
+          <span class="lobby-code-row">
+            <input id="lobby-code" type="text" maxlength="12" placeholder="e.g. RIVER" autocomplete="off" autocapitalize="characters" />
+            <button id="lobby-random" type="button" class="lobby-mini">Random</button>
+          </span>
+        </label>
+        <label class="lobby-check"><input id="lobby-fill" type="checkbox" checked /> Fill empty seats with AI</label>
+        <button id="lobby-join" class="btn call lobby-btn">Join / Create table</button>
+        <button id="lobby-back" type="button" class="lobby-link">Back</button>
+        <div id="lobby-error" class="lobby-error" role="alert"></div>
+        <p class="lobby-note">Share the code with a friend &mdash; whoever types the same code joins your table.</p>
+      </div>
+
+      <div id="lobby-room" class="lobby-panel" hidden>
+        <p class="lobby-lead">Table ready</p>
+        <p class="lobby-sub">Share this game code:</p>
+        <div id="room-code" class="room-code">&mdash;</div>
+        <ul id="room-players" class="room-players"></ul>
+        <label class="lobby-check"><input id="room-fill" type="checkbox" checked /> Fill empty seats with AI</label>
+        <button id="room-start" class="btn call lobby-btn">Start game</button>
+        <p id="room-hint" class="lobby-note"></p>
+        <button id="room-leave" type="button" class="lobby-link">Leave table</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Load in dependency order; plain scripts so it runs from a file:// path. -->
   <script src="deck.js"></script>
   <script src="evaluator.js"></script>
   <script src="ai.js"></script>
+  <script src="cards-ui.js"></script>
   <script src="game.js"></script>
+  <script src="online.js"></script>
 </body>
 </html>

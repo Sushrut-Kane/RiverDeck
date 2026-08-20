@@ -367,6 +367,76 @@ input[type="range"]::-moz-range-thumb {
   main { padding: 0 10px; }
 }
 
+/* ---- Card dealing / reveal animations ------------------------------------ */
+.community, .cards { perspective: 800px; }
+
+@keyframes cardDeal {
+  from { opacity: 0; transform: translateY(-18px) rotate(-7deg) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
+.card.dealing { animation: cardDeal .34s ease-out both; }
+
+@keyframes cardCover   { from { transform: rotateY(0); }     to { transform: rotateY(90deg); } }
+@keyframes cardUncover { from { transform: rotateY(-90deg); } to { transform: rotateY(0); } }
+.card.flip-out { animation: cardCover .18s ease-in both; }
+.card.flip-in  { animation: cardUncover .22s ease-out both; }
+/* The river gets an extra beat and a soft glow before it turns over. */
+.card.flip-out.suspense {
+  animation-duration: .34s;
+  box-shadow: 0 0 0 2px rgba(224, 165, 29, 0.6), 0 10px 22px rgba(0, 0, 0, 0.35);
+}
+.card.flip-in.suspense { animation: cardUncover .42s cubic-bezier(.2, .85, .25, 1) both; }
+
+/* ---- Lobby / start screen ------------------------------------------------- */
+.lobby-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: grid; place-items: center; padding: 20px;
+  background: radial-gradient(140% 90% at 50% 0%, rgba(22, 121, 84, 0.35), rgba(12, 40, 30, 0.6));
+  backdrop-filter: blur(6px);
+}
+.lobby-overlay.hidden { display: none; }
+.lobby-card {
+  width: min(420px, 100%);
+  background: #ffffff;
+  border: 1px solid var(--panel-brd);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(12, 40, 30, 0.4);
+  padding: 22px;
+  color: var(--ink);
+}
+.lobby-brand { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 14px; }
+.lobby-brand h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 26px; color: var(--ink); }
+.lobby-panel { display: flex; flex-direction: column; gap: 12px; }
+.lobby-panel[hidden] { display: none; } /* beat the display:flex above */
+.lobby-lead { margin: 0; text-align: center; font-weight: 700; font-size: 16px; }
+.lobby-sub { margin: 2px 0 0; text-align: center; color: var(--muted); font-size: 13px; }
+.lobby-btn { width: 100%; }
+.lobby-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 700; }
+.lobby-field input {
+  padding: 12px; border-radius: 10px; border: 1px solid var(--panel-brd);
+  background: #f2f7f8; color: var(--ink); font-size: 16px; font-weight: 700;
+}
+.lobby-code-row { display: flex; gap: 8px; }
+.lobby-code-row input { flex: 1 1 auto; text-transform: uppercase; letter-spacing: 0.14em; }
+.lobby-mini {
+  flex: none; padding: 0 14px; border-radius: 10px; border: 1px solid var(--panel-brd);
+  background: #f2f7f8; color: var(--gold-2); font-weight: 800; cursor: pointer;
+}
+.lobby-check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); font-weight: 600; }
+.lobby-link { background: none; border: none; color: var(--muted); cursor: pointer; text-decoration: underline; font: inherit; padding: 4px; }
+.lobby-error { color: var(--red); font-size: 13px; min-height: 16px; font-weight: 700; text-align: center; }
+.lobby-note { margin: 2px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+.room-code {
+  text-align: center; font-size: 30px; font-weight: 900; letter-spacing: 0.22em;
+  color: var(--gold-2); background: #f6fbf8;
+  border: 1px dashed var(--gold); border-radius: 12px; padding: 10px;
+}
+.room-players { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.room-players li {
+  background: #f2f7f8; border: 1px solid var(--panel-brd);
+  border-radius: 8px; padding: 8px 12px; font-weight: 700;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  * { transition: none !important; animation: none !important; }
 }
