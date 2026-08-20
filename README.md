@@ -16,9 +16,16 @@ No accounts, no money, no tracking, no build step. Just open it and play.
   dealt once and never changed or peeked at.
 - **Real hand evaluation** — every ranking from high card to straight flush,
   with correct kickers, split pots, and the Ace-low "wheel" straight.
-- **Honest, card-based AI** — each opponent estimates its equity with a
-  Monte-Carlo rollout of its actual hole cards and decides using real pot odds.
-  It is never nudged to make you win or lose.
+- **Range-aware, card-based AI** — each opponent estimates equity with a
+  Monte-Carlo rollout of its actual hole cards, weighted by other players'
+  public action history, bet sizes, position, and real pot odds. It is never
+  nudged to make you win or lose.
+- **Distinct table personalities** — tight-aggressive, loose-aggressive,
+  calling-station, maniac, and tricky-regular opponents use the same fair card
+  information but make meaningfully different strategic choices.
+- **Explainable decisions** — expand **Developer: AI decisions** under the
+  table to inspect each AI's estimated equity, pot price, position, and read
+  of the remaining ranges.
 - **Complete betting rules** — blinds, four streets, check / call / bet / raise /
   fold, all-in with correct **side pots**, dealer-button rotation, and elimination
   down to one winner.

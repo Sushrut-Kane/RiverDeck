@@ -37,6 +37,8 @@ const game = {
   activeIndex: -1,
   stage: 'Idle',
   handNumber: 0,
+  handActions: [],
+  aiDecisionLog: [],
   revealAll: false,
   busy: false
 };
@@ -59,13 +61,19 @@ function buildPlayers() {
     committed: 0,  // chips wagered across the whole hand (for side pots)
     raises: 0,     // bets/raises made this hand (read by opponents)
     calls: 0,      // calls made this hand (read by opponents)
+    tendencies: {
+      aggressiveAlpha: 1,
+      aggressiveBeta: 3,
+      continueAlpha: 1,
+      continueBeta: 1
+    },
     folded: false,
     allIn: false,
     out: false,    // eliminated from the tournament
     hasActed: false,
     lastAction: '',
     bestScore: null,
-    personality: i === 0 ? null : makePersonality()
+    personality: i === 0 ? null : makePersonality(i)
   }));
   game.human = game.players[0];
 }
@@ -192,6 +200,33 @@ function findNextActor(fromIdx) {
   return -1;
 }
 
+function recordHandAction(player, action, details) {
+  const potBefore = Math.max(1, game.pot - details.paid);
+  const aggressiveThisStreet = game.handActions.filter(
+    entry => entry.street === game.stage && (entry.action === 'bet' || entry.action === 'raise')
+  ).length;
+  const entry = {
+    playerId: player.id,
+    street: game.stage,
+    board: game.community.slice(),
+    action,
+    paid: details.paid,
+    toCall: details.toCall,
+    potBefore,
+    size: details.paid / potBefore,
+    isReraise: action === 'raise' && aggressiveThisStreet > 0
+  };
+  game.handActions.push(entry);
+  const tendency = player.tendencies;
+  if (tendency) {
+    const aggressive = action === 'bet' || action === 'raise';
+    if (aggressive) tendency.aggressiveAlpha++;
+    else tendency.aggressiveBeta++;
+    if (action === 'fold') tendency.continueBeta++;
+    else if (action !== 'check') tendency.continueAlpha++;
+  }
+}
+
 function applyAction(player, decision) {
   const oldCurrent = game.currentBet;
   const toCall = game.currentBet - player.bet;
@@ -199,6 +234,7 @@ function applyAction(player, decision) {
   if (decision.action === 'fold') {
     player.folded = true;
     player.hasActed = true;
+    recordHandAction(player, 'fold', { paid: 0, toCall });
     player.lastAction = 'Fold';
     log(`${player.name} folds.`);
     return;
@@ -206,6 +242,7 @@ function applyAction(player, decision) {
 
   if (decision.action === 'check') {
     player.hasActed = true;
+    recordHandAction(player, 'check', { paid: 0, toCall });
     player.lastAction = 'Check';
     log(`${player.name} checks.`);
     return;
@@ -215,6 +252,7 @@ function applyAction(player, decision) {
     const paid = putChips(player, toCall);
     player.calls++;
     player.hasActed = true;
+    recordHandAction(player, 'call', { paid, toCall });
     player.lastAction = player.allIn ? `All-In ${player.bet}` : `Call ${player.bet}`;
     log(`${player.name} ${player.allIn ? 'calls all-in for ' + paid : 'calls ' + paid}.`);
     return;
@@ -224,7 +262,7 @@ function applyAction(player, decision) {
   let target = decision.amount;
   const maxTotal = player.chips + player.bet;
   if (target > maxTotal) target = maxTotal;
-  putChips(player, target - player.bet);
+  const paid = putChips(player, target - player.bet);
 
   const inc = player.bet - oldCurrent;
   if (inc > 0) player.raises++;        // genuine bet/raise
@@ -240,6 +278,8 @@ function applyAction(player, decision) {
     game.currentBet = player.bet;
   }
   player.hasActed = true;
+
+  recordHandAction(player, oldCurrent === 0 ? 'bet' : 'raise', { paid, toCall });
 
   const verb = oldCurrent === 0 ? 'bets' : 'raises to';
   player.lastAction =
@@ -263,6 +303,7 @@ async function runBettingRound(startIdx) {
     } else {
       await sleep(500 + Math.random() * 600);
       decision = decideAction(player, game);
+      recordAIDecision(player, decision);
     }
 
     applyAction(player, decision);
@@ -443,6 +484,8 @@ async function startHand() {
   game.handNumber++;
   game.deck = freshShuffledDeck();
   game.community = [];
+  game.handActions = [];
+  game.aiDecisionLog = [];
   game.pot = 0;
   game.currentBet = 0;
   game.minRaise = game.bigBlind;
@@ -537,6 +580,29 @@ function log(msg) {
 
 function clearLog() {
   document.getElementById('log').innerHTML = '';
+}
+
+function recordAIDecision(player, decision) {
+  const equity = Math.round((decision.equity || 0) * 100);
+  const potOdds = decision.potOdds === undefined ? '' : `, price ${Math.round(decision.potOdds * 100)}%`;
+  const position = decision.position > 0.02 ? 'in position' : decision.position < -0.02 ? 'out of position' : 'neutral position';
+  game.aiDecisionLog.unshift(
+    `${player.name} (${player.personality.label}) ${decision.action}s: ${decision.reason}; ` +
+    `equity ${equity}%${potOdds}; ${position}; ranges ${decision.ranges || 'unread'}.`
+  );
+  game.aiDecisionLog.length = Math.min(game.aiDecisionLog.length, 12);
+}
+
+function renderAIDebug() {
+  const el = document.getElementById('ai-decision-log');
+  if (!el) return;
+  el.innerHTML = '';
+  for (const note of game.aiDecisionLog) {
+    const line = document.createElement('div');
+    line.className = 'ai-decision-line';
+    line.textContent = note;
+    el.appendChild(line);
+  }
 }
 
 // Small round initial used as a player avatar.
@@ -634,6 +700,7 @@ function render() {
   renderBoard();
   renderHuman();
   renderStatus();
+  renderAIDebug();
 }
 
 // Whose turn it is, shown in the sticky action bar.

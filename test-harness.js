@@ -36,6 +36,7 @@ vm.createContext(ctx);
 for (const f of ['deck.js', 'evaluator.js', 'ai.js', 'game.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx);
 }
+const gameState = vm.runInContext('game', ctx);
 
 let pass = 0, fail = 0;
 function check(name, cond) {
@@ -92,7 +93,7 @@ check('best 7 picks top two pair', name(twoPairBest) === 'Two Pair' && twoPairBe
 // A all-in 100, B all-in 300, C 300, D folds after 40.
 // Contributions: A100, B300, C300, D40.
 const mkP = (nameStr, committed, folded) => ({ name: nameStr, committed, folded, chips: 0, hole: [] });
-ctx.game.players = [
+gameState.players = [
   mkP('A', 100, false),
   mkP('B', 300, false),
   mkP('C', 300, false),
@@ -115,6 +116,28 @@ check('layer3 amount 400 (B,C only)', pots[2].amount === 400 &&
 const deck = ctx.freshShuffledDeck();
 const seen = new Set(deck.map(c => c.rank + '-' + c.suit));
 check('deck has 52 unique cards', deck.length === 52 && seen.size === 52);
+
+// --- AI range reading ---
+const aiPersonality = ctx.makePersonality(1);
+const hero = { id: 90, hole: [C(13, 0), C(7, 1)], folded: false, out: false };
+const villain = { id: 91, hole: [], folded: false, out: false, personality: aiPersonality };
+const flop = [C(12, 2), C(9, 3), C(2, 0)];
+const rangeGame = { players: [hero, villain], community: flop, stage: 'Flop', handActions: [] };
+const known = [...hero.hole, ...flop];
+
+rangeGame.handActions = [{
+  playerId: villain.id, street: 'Flop', board: flop.slice(), action: 'bet',
+  paid: 25, toCall: 0, potBefore: 100, size: 0.25, isReraise: false
+}];
+const probeRange = ctx.buildOpponentRange(villain, rangeGame, known);
+
+rangeGame.handActions = [{
+  playerId: villain.id, street: 'Flop', board: flop.slice(), action: 'raise',
+  paid: 100, toCall: 20, potBefore: 100, size: 1, isReraise: true
+}];
+const reraisedRange = ctx.buildOpponentRange(villain, rangeGame, known);
+check('pot re-raise narrows range more than probe', reraisedRange.meanStrength > probeRange.meanStrength);
+check('large re-raise is labelled polarized', reraisedRange.label === 'polarized / very strong');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

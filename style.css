@@ -7,22 +7,22 @@
  */
 
 :root {
-  --bg-0: #060c09;
-  --bg-1: #0b1712;
-  --felt-0: #16794c;
-  --felt-1: #0c4d31;
-  --felt-edge: #063020;
-  --panel: rgba(18, 40, 30, 0.72);
-  --panel-brd: rgba(120, 200, 160, 0.18);
-  --ink: #eaf3ee;
-  --muted: #9db8ab;
-  --gold: #f6c85f;
-  --gold-2: #d99f33;
-  --red: #e0384f;
-  --active: #ffd76a;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
-  --radius: 14px;
-  color-scheme: dark;
+  --bg-0: #edf4f6;
+  --bg-1: #dce9ee;
+  --felt-0: #197554;
+  --felt-1: #0c4b3a;
+  --felt-edge: #08372d;
+  --panel: rgba(255, 255, 255, 0.82);
+  --panel-brd: #c6d8df;
+  --ink: #172936;
+  --muted: #58717e;
+  --gold: #e0a51d;
+  --gold-2: #b87b0b;
+  --red: #c8344b;
+  --active: #d39710;
+  --shadow: 0 10px 24px rgba(31, 62, 75, 0.14);
+  --radius: 10px;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -32,10 +32,10 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   min-height: 100dvh;
-  font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(150% 100% at 50% -10%, #143222 0%, var(--bg-1) 45%, var(--bg-0) 100%) fixed;
+    radial-gradient(140% 76% at 50% 0%, #c8d9d5 0%, var(--bg-1) 46%, var(--bg-0) 100%) fixed;
   -webkit-tap-highlight-color: transparent;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
@@ -51,24 +51,24 @@ body {
 main { flex: 1 1 auto; padding: 0 12px; }
 
 /* ---- Top bar / brand ------------------------------------------------------ */
-.topbar { padding: 14px 4px 8px; }
+.topbar { padding: 16px 4px 10px; }
 .brand { display: flex; align-items: center; gap: 12px; justify-content: center; }
 .brand-mark {
-  width: 46px; height: 46px; border-radius: 13px;
+  width: 46px; height: 46px; border-radius: 10px;
   display: grid; place-items: center;
-  font-size: 26px; color: #10231a;
-  background: linear-gradient(150deg, var(--gold), var(--gold-2));
+  font-size: 26px; color: #172936;
+  background: linear-gradient(150deg, #f4ca48, var(--gold-2));
   box-shadow: var(--shadow);
 }
 .brand-text { text-align: left; }
 .brand h1 {
   margin: 0;
-  font-size: clamp(22px, 6vw, 30px);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(24px, 6vw, 32px);
   letter-spacing: 0.02em;
-  background: linear-gradient(180deg, #fff, #cfe9d7);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+  color: #172936;
 }
-.tagline { margin: 2px 0 0; font-size: clamp(11px, 3vw, 13px); color: var(--muted); }
+.tagline { margin: 2px 0 0; font-size: clamp(11px, 3vw, 13px); color: #415d6b; }
 
 /* ---- Opponents ------------------------------------------------------------ */
 .opponents {
@@ -254,23 +254,43 @@ main { flex: 1 1 auto; padding: 0 12px; }
   margin: 8px 2px 6px; text-transform: uppercase; letter-spacing: 0.06em;
 }
 .log {
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(255, 255, 255, 0.7);
   border: 1px solid var(--panel-brd);
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 8px 12px;
   height: 132px; overflow-y: auto;
   font-size: 12.5px; line-height: 1.55;
 }
-.log-line { padding: 3px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
-.log-line:first-child { color: #fff; }
+.log-line { padding: 3px 0; border-bottom: 1px solid rgba(23, 41, 54, 0.08); }
+.log-line:first-child { color: var(--ink); font-weight: 700; }
+
+.ai-debug {
+  margin: 10px 0 14px;
+  border: 1px solid var(--panel-brd);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--muted);
+  font-size: 12px;
+}
+.ai-debug summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+.ai-decision-log { padding: 0 12px 10px; }
+.ai-decision-line {
+  padding: 7px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  line-height: 1.4;
+}
 
 /* ---- Action bar (sticky) -------------------------------------------------- */
 .actionbar {
   position: sticky; bottom: 0; z-index: 30;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  background: linear-gradient(to top, rgba(6, 12, 9, 0.98), rgba(6, 12, 9, 0.82));
+  background: linear-gradient(to top, rgba(237, 244, 246, 0.98), rgba(237, 244, 246, 0.86));
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--panel-brd);
 }
 .turn-status {
   text-align: center; min-height: 16px; margin-bottom: 6px;
