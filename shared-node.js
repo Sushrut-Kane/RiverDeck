@@ -38,5 +38,7 @@ module.exports = {
   handName: ctx.handName,
   // ai.js
   makePersonality: ctx.makePersonality,
-  decideAction: ctx.decideAction
+  decideAction: ctx.decideAction,
+  drawStrength: ctx.drawStrength,
+  scaryBoardCard: ctx.scaryBoardCard
 };

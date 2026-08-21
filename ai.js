@@ -245,8 +245,55 @@ function streetAggression(game, street) {
   );
 }
 
+function wasStreetAggressor(player, game, street) {
+  return streetAggression(game, street).some(entry => entry.playerId === player.id);
+}
+
 function wasPreflopAggressor(player, game) {
-  return streetAggression(game, 'Pre-Flop').some(entry => entry.playerId === player.id);
+  return wasStreetAggressor(player, game, 'Pre-Flop');
+}
+
+// A rough read of drawing potential on the flop or turn: 0 = no draw, up to ~1
+// for a big combo draw. The equity rollout already values the outs; this only
+// decides how OFTEN to bet a draw as a semi-bluff.
+function drawStrength(hole, community) {
+  if (community.length < 3 || community.length >= 5) return 0;
+  const cards = [...hole, ...community];
+  const suitCounts = [0, 0, 0, 0];
+  for (const c of cards) suitCounts[c.suit]++;
+  const flushDraw = suitCounts.some(n => n === 4); // 4 to a flush (5+ is already made)
+
+  const ranks = new Set(cards.map(c => c.rank));
+  if (ranks.has(14)) ranks.add(1); // the ace can also play low
+  let bestRun = 0, run = 0;
+  for (let r = 1; r <= 14; r++) {
+    if (ranks.has(r)) { run++; if (run > bestRun) bestRun = run; } else run = 0;
+  }
+  let gutshot = false;
+  for (let lo = 1; lo <= 10 && !gutshot; lo++) {
+    let inWindow = 0;
+    for (let r = lo; r <= lo + 4; r++) if (ranks.has(r)) inWindow++;
+    if (inWindow === 4) gutshot = true; // four to a straight inside a five-rank window
+  }
+  let straightDraw = 0;
+  if (bestRun === 4) straightDraw = 0.8;               // open-ended
+  else if (bestRun < 4 && gutshot) straightDraw = 0.4; // inside draw
+  // bestRun >= 5 means the straight is already made, so it is not a draw.
+
+  if (flushDraw && straightDraw >= 0.8) return 1;
+  return Math.max(flushDraw ? 0.85 : 0, straightDraw);
+}
+
+// The newest board card looks dangerous — a reason to slow a bluff down.
+function scaryBoardCard(community) {
+  if (community.length < 4) return false;
+  const flop = community.slice(0, 3);
+  const newest = community[community.length - 1];
+  const maxFlop = Math.max(...flop.map(c => c.rank));
+  if (newest.rank > maxFlop && newest.rank >= 12) return true; // high overcard
+  const suits = [0, 0, 0, 0];
+  for (const c of community) suits[c.suit]++;
+  return suits.some(n => n >= 3); // three or more to a flush on the board
 }
 
 function decision(action, details) {
@@ -277,6 +324,31 @@ function decideAction(player, game) {
   const meta = { equity, ranges: rangeText, position };
   const wantToValueBet = 0.5 + 0.04 * opponents - position * 0.3;
   const roll = Math.random();
+  const draw = drawStrength(player.hole, game.community);
+  const crowd = 1 / opponents;              // air bluffs shrink as more players stay in
+  const drawCrowd = Math.sqrt(crowd);       // draws can still fire multiway — they have outs
+  const stackBB = (player.chips + player.bet) / bigBlind;
+
+  // Short stacks play push-or-fold: jam a strong enough hand, otherwise fold or
+  // take a free card — no thin min-raises when you're this shallow.
+  if (player.chips > 0 && stackBB <= 12) {
+    const shoveBar = Math.max(0.18, Math.min(0.6, 0.46 - 1.1 / stackBB + 0.03 * (opponents - 1)));
+    const allInTotal = player.chips + player.bet;
+    const price = toCall / (pot + toCall);
+    if (toCall === 0) {
+      if (equity >= shoveBar && allInTotal > game.currentBet) {
+        return decision('raise', { amount: allInTotal, reason: 'short-stack shove', ...meta });
+      }
+      return decision('check', { reason: 'short-stack check', ...meta });
+    }
+    if (equity >= shoveBar && allInTotal > game.currentBet && roll < 0.9) {
+      return decision('raise', { amount: allInTotal, potOdds: price, reason: 'short-stack jam', ...meta });
+    }
+    if (equity + 0.03 >= price) {
+      return decision('call', { potOdds: price, reason: 'short-stack call', ...meta });
+    }
+    return decision('fold', { potOdds: price, reason: 'short-stack fold', ...meta });
+  }
 
   const sizedRaiseTo = (fraction, bluff) => {
     const maxTotal = player.chips + player.bet; // going all-in caps the raise
@@ -304,14 +376,20 @@ function decideAction(player, game) {
     const valueBet = equity > wantToValueBet;
     const cBet = game.stage === 'Flop' && inPosition && wasPreflopAggressor(player, game) &&
       equity > 0.2 && roll < p.cBet * 0.25;
-    const bluff = roll < p.bluff && equity > 0.2;
+    const bluff = equity > 0.2 && roll < p.bluff * crowd;               // pure air: rare into a crowd
+    const semiBluff = draw >= 0.75 && equity > 0.25 &&
+      roll < (0.45 + 0.3 * p.aggression) * drawCrowd;                   // bet the draw: fold equity + outs
+    const barrel = game.stage === 'Turn' && wasStreetAggressor(player, game, 'Flop') &&
+      equity < wantToValueBet && draw < 0.75 && !scaryBoardCard(game.community) &&
+      roll < (0.4 + 0.25 * p.aggression) * crowd;                       // second barrel to keep the story
     const slowPlay = game.community.length > 0 && equity > 0.8 && roll < p.slowPlay;
     const checkBack = inPosition && equity >= 0.42 && equity <= 0.62 && roll < 0.34;
-    if ((valueBet || bluff || cBet) && !slowPlay && !checkBack && player.chips > 0) {
+    if ((valueBet || bluff || semiBluff || cBet || barrel) && !slowPlay && !checkBack && player.chips > 0) {
       const frac = equity > 0.86 ? 1 : equity > 0.7 ? 0.75 : 0.5;
-      const raiseTo = sizedRaiseTo(frac, bluff || cBet);
+      const raiseTo = sizedRaiseTo(frac, bluff || cBet || semiBluff || barrel);
       if (raiseTo > game.currentBet) {
-        const reason = valueBet ? 'value bet' : cBet ? 'position c-bet' : 'bluff';
+        const reason = valueBet ? 'value bet' : semiBluff ? 'semi-bluff (draw)' :
+          cBet ? 'position c-bet' : barrel ? 'second barrel' : 'bluff';
         return decision('raise', { amount: raiseTo, reason, ...meta });
       }
     }
@@ -330,7 +408,14 @@ function decideAction(player, game) {
     }
   }
 
-  if (roll < p.bluff * 0.5 && player.chips > toCall) {
+  if (draw >= 0.8 && player.chips > toCall && roll < (0.22 + 0.2 * p.aggression) * drawCrowd) {
+    const raiseTo = sizedRaiseTo(0.6, true);
+    if (raiseTo >= game.currentBet + game.minRaise) {
+      return decision('raise', { amount: raiseTo, potOdds, reason: 'semi-bluff raise', ...meta });
+    }
+  }
+
+  if (roll < p.bluff * 0.5 * crowd && player.chips > toCall) {
     const raiseTo = sizedRaiseTo(0.5, true);
     if (raiseTo >= game.currentBet + game.minRaise) {
       return decision('raise', { amount: raiseTo, potOdds, reason: 'bluff raise', ...meta });
