@@ -28,6 +28,25 @@ const SHOWDOWN_REVEAL = 900;
 const HANDOVER_DELAY = 6000;
 const TURN_TIMEOUT = 45000; // auto check/fold so an idle seat can't freeze a room
 
+// Blinds climb every few hands (tournament style); antes join higher up.
+const HANDS_PER_LEVEL = 6;
+const BLIND_LEVELS = [
+  { sb: 10, bb: 20, ante: 0 },
+  { sb: 15, bb: 30, ante: 0 },
+  { sb: 25, bb: 50, ante: 5 },
+  { sb: 50, bb: 100, ante: 10 },
+  { sb: 75, bb: 150, ante: 15 },
+  { sb: 100, bb: 200, ante: 25 },
+  { sb: 150, bb: 300, ante: 25 },
+  { sb: 200, bb: 400, ante: 50 },
+  { sb: 300, bb: 600, ante: 75 },
+  { sb: 500, bb: 1000, ante: 100 }
+];
+function blindLevel(handNumber) {
+  const i = Math.min(BLIND_LEVELS.length - 1, Math.max(0, Math.floor((handNumber - 1) / HANDS_PER_LEVEL)));
+  return { index: i, ...BLIND_LEVELS[i] };
+}
+
 // ----------------------------------------------------------------------------
 // Room lifecycle
 // ----------------------------------------------------------------------------
@@ -44,7 +63,7 @@ function createRoom(code, opts = {}) {
     version: 1,
 
     deck: [], community: [], pot: 0, currentBet: 0, minRaise: BIG_BLIND,
-    smallBlind: SMALL_BLIND, bigBlind: BIG_BLIND,
+    smallBlind: SMALL_BLIND, bigBlind: BIG_BLIND, ante: 0, level: 0,
     dealerIndex: 0, sbIndex: 0, bbIndex: 0, preflopStart: 0, postflopStart: 0,
     seatOrder: [], activeIndex: -1, stage: 'Lobby', handNumber: 0, streetIndex: 0,
     handActions: [], aiDecisionLog: [], revealAll: false,
@@ -241,6 +260,22 @@ function postBlinds(room) {
   sb.hasActed = false;
   bb.hasActed = false;
   log(room, `${sb.name} posts small blind ${room.smallBlind}, ${bb.name} posts big blind ${room.bigBlind}.`);
+}
+
+function postAntes(room) {
+  if (!room.ante) return;
+  let total = 0;
+  for (const idx of room.seatOrder) {
+    const p = room.players[idx];
+    if (p.out) continue;
+    const pay = Math.min(room.ante, p.chips);
+    p.chips -= pay;
+    p.committed += pay;
+    room.pot += pay;
+    total += pay;
+    if (p.chips === 0) p.allIn = true;
+  }
+  if (total > 0) log(room, `Antes: ${room.ante} each.`);
 }
 
 function dealStreet(room, streetIndex) {
@@ -539,9 +574,7 @@ function distributePot(room, pot, index, total) {
 function showdown(room) {
   room.stage = 'Showdown';
   room.revealAll = true;
-  for (const p of room.players) {
-    if (!p.folded && !p.out) p.bestScore = shared.evaluate7([...p.hole, ...room.community]);
-  }
+  resolveShowdownReveals(room);
   room.activeIndex = -1;
   touch(room); // reveal the cards first, build the suspense, then pay out
   clearPacing(room);
@@ -603,8 +636,43 @@ function requestNextHand(room) {
 // A single hand
 // ----------------------------------------------------------------------------
 
+// Decide who shows and who mucks at showdown (see the offline note in game.js).
+function resolveShowdownReveals(room) {
+  const contenders = seatedIndicesFrom(room, room.postflopStart)
+    .map(i => room.players[i])
+    .filter(p => !p.folded && !p.out);
+  const riverBets = (room.handActions || []).filter(
+    e => e.street === 'River' && (e.action === 'bet' || e.action === 'raise')
+  );
+  let order = contenders;
+  if (riverBets.length) {
+    const aggId = riverBets[riverBets.length - 1].playerId;
+    const at = contenders.findIndex(p => p.id === aggId);
+    if (at > 0) order = contenders.slice(at).concat(contenders.slice(0, at));
+  }
+  let best = null;
+  for (const p of order) {
+    const score = shared.evaluate7([...p.hole, ...room.community]);
+    p.bestScore = score;
+    if (!best || shared.compareScores(score, best) >= 0) {
+      p.shown = true;
+      if (!best || shared.compareScores(score, best) > 0) best = score;
+    } else {
+      p.shown = false;
+    }
+  }
+}
+
 function startHand(room) {
   room.handNumber++;
+  const lvl = blindLevel(room.handNumber);
+  if (lvl.index !== room.level && room.handNumber > 1) {
+    log(room, `Blinds up — ${lvl.sb}/${lvl.bb}${lvl.ante ? ' (ante ' + lvl.ante + ')' : ''}.`);
+  }
+  room.level = lvl.index;
+  room.smallBlind = lvl.sb;
+  room.bigBlind = lvl.bb;
+  room.ante = lvl.ante;
   room.deck = shared.freshShuffledDeck();
   room.community = [];
   room.handActions = [];
@@ -629,11 +697,13 @@ function startHand(room) {
     p.hasActed = p.out;
     p.lastAction = p.out ? 'Out' : '';
     p.bestScore = null;
+    p.shown = false;
   }
 
   computePositions(room);
   dealHoleCards(room);
   log(room, `--- Hand #${room.handNumber} --- Dealer: ${room.players[room.dealerIndex].name}`);
+  postAntes(room);
   postBlinds(room);
   room.stage = 'Pre-Flop';
   room.phase = 'hand';
@@ -671,7 +741,7 @@ function viewFor(room, token) {
 
   const players = room.players.map(p => {
     const mine = p.id === you;
-    const revealed = room.revealAll && !p.folded && !p.out;
+    const revealed = room.revealAll && !!p.shown;
     return {
       id: p.id,
       name: p.name,
@@ -704,7 +774,10 @@ function viewFor(room, token) {
     stage: room.stage,
     pot: room.pot,
     currentBet: room.currentBet,
+    smallBlind: room.smallBlind,
     bigBlind: room.bigBlind,
+    ante: room.ante,
+    level: room.level,
     community: room.community.slice(),
     handNumber: room.handNumber,
     message: room.message,

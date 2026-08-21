@@ -16,6 +16,26 @@ const SMALL_BLIND = 10;
 const BIG_BLIND = 20;
 const PLAYER_NAMES = ['You', 'Ava', 'Ben', 'Cara', 'Dan', 'Eve'];
 
+// Blinds climb every few hands, like a real tournament — this adds pressure and
+// keeps games from dragging. Antes join in at the higher levels.
+const HANDS_PER_LEVEL = 6;
+const BLIND_LEVELS = [
+  { sb: 10, bb: 20, ante: 0 },
+  { sb: 15, bb: 30, ante: 0 },
+  { sb: 25, bb: 50, ante: 5 },
+  { sb: 50, bb: 100, ante: 10 },
+  { sb: 75, bb: 150, ante: 15 },
+  { sb: 100, bb: 200, ante: 25 },
+  { sb: 150, bb: 300, ante: 25 },
+  { sb: 200, bb: 400, ante: 50 },
+  { sb: 300, bb: 600, ante: 75 },
+  { sb: 500, bb: 1000, ante: 100 }
+];
+function blindLevel(handNumber) {
+  const i = Math.min(BLIND_LEVELS.length - 1, Math.max(0, Math.floor((handNumber - 1) / HANDS_PER_LEVEL)));
+  return { index: i, ...BLIND_LEVELS[i] };
+}
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const game = {
@@ -28,6 +48,8 @@ const game = {
   minRaise: BIG_BLIND,
   smallBlind: SMALL_BLIND,
   bigBlind: BIG_BLIND,
+  ante: 0,
+  level: 0,
   dealerIndex: 0,
   sbIndex: 0,
   bbIndex: 0,
@@ -149,6 +171,22 @@ function postBlinds() {
   log(`${sb.name} posts small blind ${game.smallBlind}, ${bb.name} posts big blind ${game.bigBlind}.`);
 }
 
+function postAntes() {
+  if (!game.ante) return;
+  let total = 0;
+  for (const idx of game.seatOrder) {
+    const p = game.players[idx];
+    if (p.out) continue;
+    const pay = Math.min(game.ante, p.chips);
+    p.chips -= pay;
+    p.committed += pay;
+    game.pot += pay;
+    total += pay;
+    if (p.chips === 0) p.allIn = true;
+  }
+  if (total > 0) log(`Antes: ${game.ante} each.`);
+}
+
 // ----------------------------------------------------------------------------
 // Dealing the board
 // ----------------------------------------------------------------------------
@@ -237,6 +275,7 @@ function applyAction(player, decision) {
     recordHandAction(player, 'fold', { paid: 0, toCall });
     player.lastAction = 'Fold';
     log(`${player.name} folds.`);
+    if (window.FX) FX.sound('fold');
     return;
   }
 
@@ -245,6 +284,7 @@ function applyAction(player, decision) {
     recordHandAction(player, 'check', { paid: 0, toCall });
     player.lastAction = 'Check';
     log(`${player.name} checks.`);
+    if (window.FX) FX.sound('check');
     return;
   }
 
@@ -255,6 +295,7 @@ function applyAction(player, decision) {
     recordHandAction(player, 'call', { paid, toCall });
     player.lastAction = player.allIn ? `All-In ${player.bet}` : `Call ${player.bet}`;
     log(`${player.name} ${player.allIn ? 'calls all-in for ' + paid : 'calls ' + paid}.`);
+    if (window.FX) FX.sound('call');
     return;
   }
 
@@ -285,6 +326,7 @@ function applyAction(player, decision) {
   player.lastAction =
     (player.allIn ? 'All-In ' : oldCurrent === 0 ? 'Bet ' : 'Raise ') + player.bet;
   log(`${player.name} ${verb} ${player.bet}${player.allIn ? ' (all-in)' : ''}.`);
+  if (window.FX) FX.sound('raise');
 }
 
 async function runBettingRound(startIdx) {
@@ -410,23 +452,67 @@ function distributePot(pot, index, total) {
   const label = total > 1 ? (index === 0 ? 'Main pot' : `Side pot ${index}`) : 'Pot';
   const names = winners.map(w => w.name).join(', ');
   log(`${label} ${pot.amount} -> ${names} (${handName(best)}).`);
+  return winners;
+}
+
+// Decide who shows and who mucks: reveal in show order from the last river
+// aggressor, and let a hand muck (stay hidden) if it can't beat what's already
+// been shown — just like a real table.
+function resolveShowdownReveals() {
+  const contenders = seatedIndicesFrom(game.postflopStart)
+    .map(i => game.players[i])
+    .filter(p => !p.folded && !p.out);
+  const riverBets = (game.handActions || []).filter(
+    e => e.street === 'River' && (e.action === 'bet' || e.action === 'raise')
+  );
+  let order = contenders;
+  if (riverBets.length) {
+    const aggId = riverBets[riverBets.length - 1].playerId;
+    const at = contenders.findIndex(p => p.id === aggId);
+    if (at > 0) order = contenders.slice(at).concat(contenders.slice(0, at));
+  }
+  let best = null;
+  for (const p of order) {
+    const score = evaluate7([...p.hole, ...game.community]);
+    p.bestScore = score;
+    if (!best || compareScores(score, best) >= 0) {
+      p.shown = true;
+      if (!best || compareScores(score, best) > 0) best = score;
+    } else {
+      p.shown = false;
+    }
+  }
+}
+
+function opponentPanel(p) {
+  return document.querySelector(`.player[data-pid="${p.id}"]`);
+}
+
+function flashWinners(players) {
+  if (!window.FX) return;
+  FX.sound('win');
+  for (const p of players) {
+    const el = p.isHuman ? document.getElementById('human') : opponentPanel(p);
+    if (el) { el.classList.add('winner'); FX.potToWinner(el); }
+  }
 }
 
 async function showdown() {
   game.stage = 'Showdown';
   game.revealAll = true;
-  // Make sure every shown hand has a computed rank for display.
-  for (const p of game.players) {
-    if (!p.folded && !p.out) p.bestScore = evaluate7([...p.hole, ...game.community]);
-  }
+  resolveShowdownReveals();
   render();
   await sleep(400);
 
   const pots = buildPots();
-  pots.forEach((pot, i) => distributePot(pot, i, pots.length));
+  const winners = new Set();
+  pots.forEach((pot, i) => {
+    for (const w of distributePot(pot, i, pots.length) || []) winners.add(w);
+  });
   game.pot = 0;
   render();
   finishHand();
+  flashWinners([...winners]);
 }
 
 function endByFolds() {
@@ -436,6 +522,7 @@ function endByFolds() {
   game.pot = 0;
   render();
   finishHand();
+  flashWinners([winner]);
 }
 
 // ----------------------------------------------------------------------------
@@ -453,6 +540,7 @@ async function playHand() {
   for (let s = 0; s < streets.length; s++) {
     const st = streets[s];
     if (s > 0) {
+      if (window.FX) await FX.sweepBetsToPot();
       resetBetsForNewStreet();
       st.deal();
       game.stage = st.name;
@@ -482,6 +570,14 @@ async function startHand() {
   document.getElementById('btn-next-hand').style.display = 'none';
 
   game.handNumber++;
+  const lvl = blindLevel(game.handNumber);
+  if (lvl.index !== game.level && game.handNumber > 1) {
+    log(`Blinds up — ${lvl.sb}/${lvl.bb}${lvl.ante ? ' (ante ' + lvl.ante + ')' : ''}.`);
+  }
+  game.level = lvl.index;
+  game.smallBlind = lvl.sb;
+  game.bigBlind = lvl.bb;
+  game.ante = lvl.ante;
   game.deck = freshShuffledDeck();
   game.community = [];
   game.handActions = [];
@@ -503,11 +599,16 @@ async function startHand() {
     p.hasActed = p.out;
     p.lastAction = p.out ? 'Out' : '';
     p.bestScore = null;
+    p.shown = false;
   }
 
   computePositions();
   dealHoleCards();
+  if (window.FX) FX.sound('deal');
+  const humanEl = document.getElementById('human');
+  if (humanEl) humanEl.classList.remove('winner');
   log(`--- Hand #${game.handNumber} --- Dealer: ${game.players[game.dealerIndex].name}`);
+  postAntes();
   postBlinds();
   game.stage = 'Pre-Flop';
   render();
@@ -637,11 +738,12 @@ function renderOpponents() {
     const p = game.players[i];
     const box = document.createElement('div');
     box.className = 'player';
+    box.dataset.pid = i;
     if (i === game.activeIndex) box.classList.add('active');
     if (p.folded && !p.out) box.classList.add('folded');
     if (p.out) box.classList.add('out');
 
-    const reveal = game.revealAll && !p.folded && !p.out;
+    const reveal = game.revealAll && p.shown;
     const cards = p.out
       ? ''
       : `<div class="cards">${cardHTML(p.hole[0], !reveal)}${cardHTML(p.hole[1], !reveal)}</div>`;
@@ -653,7 +755,7 @@ function renderOpponents() {
       `<div class="p-head"><span class="who">${avatarHTML(p)}<span class="p-name">${p.name}</span></span>${positionBadge(i)}</div>` +
       cards +
       `<div class="p-chips">${p.out ? 'OUT' : p.chips + ' chips'}</div>` +
-      `<div class="p-bet">${p.bet > 0 ? 'bet ' + p.bet : ''}</div>` +
+      `<div class="p-bet">${window.FX ? FX.chipHTML(p.bet) : (p.bet > 0 ? 'bet ' + p.bet : '')}</div>` +
       `<div class="p-action">${p.lastAction || ''}</div>` +
       handInfo;
     container.appendChild(box);
@@ -684,7 +786,7 @@ function renderHuman() {
   document.getElementById('human-info').innerHTML =
     `<span class="who">${avatarHTML(p)}<span class="p-name">${p.name}</span></span>${positionBadge(0)}` +
     `<span class="p-chips">${p.out ? 'OUT' : p.chips + ' chips'}</span>` +
-    `<span class="p-bet">${p.bet > 0 ? 'bet ' + p.bet : ''}</span>` +
+    `<span class="p-bet">${window.FX ? FX.chipHTML(p.bet) : (p.bet > 0 ? 'bet ' + p.bet : '')}</span>` +
     `<span class="p-action">${p.lastAction || ''}</span>`;
 }
 
@@ -793,6 +895,13 @@ function dispatchIntent(intent) {
 }
 
 function wireControls() {
+  const soundBtn = document.getElementById('btn-sound');
+  if (soundBtn && window.FX) {
+    const paint = () => { soundBtn.textContent = FX.isMuted() ? '\u{1F507}' : '\u{1F50A}'; };
+    paint();
+    soundBtn.addEventListener('click', () => { FX.setMuted(!FX.isMuted()); paint(); if (!FX.isMuted()) FX.sound('chip'); });
+  }
+
   document.getElementById('btn-fold').addEventListener('click', () => {
     dispatchIntent({ action: 'fold' });
   });

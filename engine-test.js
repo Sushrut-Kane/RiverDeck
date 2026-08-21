@@ -186,5 +186,42 @@ function totalChips(room) {
   check('short stack does not jam trash', jammedWeak === 0);
 }
 
+// --- Position bias, rising blinds, antes, mucking --------------------------
+{
+  const C = (rank, suit) => ({ rank, suit });
+  const g = { stage: 'Pre-Flop', seatOrder: [0, 1, 2, 3, 4, 5] };
+  const utg = shared.preflopPositionBias({ id: 3 }, g);
+  const btn = shared.preflopPositionBias({ id: 0 }, g);
+  const bb = shared.preflopPositionBias({ id: 2 }, g);
+  check('early position is tighter than the button', utg < btn);
+  check('the blinds get the loosest preflop discount', bb > btn);
+  check('position bias is off postflop', shared.preflopPositionBias({ id: 3 }, { stage: 'Flop', seatOrder: [0, 1, 2, 3, 4, 5] }) === 0);
+
+  // Rising blinds + antes.
+  const room = manualRoom('BLINDS', { fillAI: true, tableSize: 6 });
+  engine.joinRoom(room, 'A');
+  engine.startGame(room, { fillAI: true, tableSize: 6 });
+  check('starts at 10/20 with no ante', room.smallBlind === 10 && room.bigBlind === 20 && room.ante === 0);
+  room.awaiting = null; room.handNumber = 6;
+  engine.startHand(room); // -> hand 7, level 1
+  check('blinds rise after a few hands', room.smallBlind === 15 && room.bigBlind === 30);
+  room.awaiting = null; room.handNumber = 12;
+  engine.startHand(room); // -> hand 13, level 2
+  check('antes kick in at higher levels', room.ante > 0);
+
+  // Muck: a beaten hand stays hidden even at showdown.
+  const mroom = engine.createRoom('MUCK', {});
+  const seat = (id, hole, best, shown) => ({
+    id, name: 'P' + id, kind: 'ai', hole, bestScore: best, shown,
+    chips: 100, bet: 0, committed: 0, folded: false, out: false, allIn: false, lastAction: ''
+  });
+  mroom.players = [seat(0, [C(14, 0), C(14, 1)], [8, 14, 14], true), seat(1, [C(7, 0), C(2, 1)], [1, 7], false)];
+  mroom.revealAll = true;
+  mroom.dealerIndex = 0; mroom.sbIndex = 0; mroom.bbIndex = 1; mroom.activeIndex = -1;
+  const view = engine.viewFor(mroom, 'spectator');
+  check('winner is shown at showdown', Array.isArray(view.players[0].hole));
+  check('a beaten hand mucks (stays hidden)', view.players[1].hole === null);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

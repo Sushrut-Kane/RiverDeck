@@ -152,12 +152,36 @@
 
   // ---- Rendering -----------------------------------------------------------
 
+  function playTransitions(view) {
+    if (!window.FX) return;
+    const prev = Online._prev;
+    if (prev && prev.handNumber != null) {
+      if (view.handNumber !== prev.handNumber && view.phase === 'hand') FX.sound('deal');
+      for (const p of view.players) {
+        const pp = prev.players && prev.players.find(x => x.id === p.id);
+        if (pp && p.lastAction && p.lastAction !== pp.lastAction) {
+          const w = (p.lastAction.split(' ')[0] || '').toLowerCase();
+          if (w === 'fold' || w === 'check' || w === 'call') FX.actionSound(w);
+          else if (w === 'raise' || w === 'bet' || w === 'all-in') FX.actionSound('raise');
+        }
+      }
+      if (view.revealAll && !prev.revealAll) FX.sound('win');
+      if (view.pot > prev.pot) {
+        const potEl = document.getElementById('pot');
+        if (potEl) { potEl.classList.remove('bump'); void potEl.offsetWidth; potEl.classList.add('bump'); }
+      }
+    }
+    Online._prev = view;
+  }
+
   function applyView(view) {
     if (view.phase === 'lobby') {
       renderRoom(view);
+      Online._prev = null;
       return;
     }
     hideOverlay();
+    playTransitions(view);
     renderGame(view);
   }
 
@@ -248,7 +272,7 @@
         `<div class="p-head"><span class="who">${avatar(p)}<span class="p-name">${p.name}</span></span>${badges(p)}</div>` +
         cards +
         `<div class="p-chips">${p.out ? 'OUT' : p.chips + ' chips'}</div>` +
-        `<div class="p-bet">${p.bet > 0 ? 'bet ' + p.bet : ''}</div>` +
+        `<div class="p-bet">${window.FX ? FX.chipHTML(p.bet) : (p.bet > 0 ? 'bet ' + p.bet : '')}</div>` +
         `<div class="p-action">${p.lastAction || ''}</div>` +
         handInfo;
       container.appendChild(box);
@@ -272,7 +296,7 @@
     $('human-info').innerHTML = you
       ? `<span class="who">${avatar(you)}<span class="p-name">${you.name} (you)</span></span>${badges(you)}` +
         `<span class="p-chips">${you.out ? 'OUT' : you.chips + ' chips'}</span>` +
-        `<span class="p-bet">${you.bet > 0 ? 'bet ' + you.bet : ''}</span>` +
+        `<span class="p-bet">${window.FX ? FX.chipHTML(you.bet) : (you.bet > 0 ? 'bet ' + you.bet : '')}</span>` +
         `<span class="p-action">${you.lastAction || ''}</span>`
       : '<span class="p-name">Spectating</span>';
   }

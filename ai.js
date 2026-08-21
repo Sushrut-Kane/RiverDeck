@@ -239,6 +239,20 @@ function positionEdge(player, game) {
   return -0.045 * (1 - distance / order.length);
 }
 
+// Pre-flop, later seats (fewer players still to act behind them) can play
+// looser; early seats need a stronger hand. Roughly -0.09 (UTG) .. +0.07 (blinds).
+function preflopPositionBias(player, game) {
+  if (game.stage !== 'Pre-Flop') return 0;
+  const order = game.seatOrder || [];
+  const k = order.length;
+  if (k < 2) return 0;
+  const seq = [];
+  for (let i = 0; i < k; i++) seq.push(order[(3 + i) % k]); // UTG acts first ... BB last
+  const actPos = seq.indexOf(player.id);
+  if (actPos < 0) return 0;
+  return (actPos / (k - 1) - 0.55) * 0.16;
+}
+
 function streetAggression(game, street) {
   return (game.handActions || []).filter(entry =>
     entry.street === street && (entry.action === 'bet' || entry.action === 'raise')
@@ -318,6 +332,7 @@ function decideAction(player, game) {
   const opponents = Math.max(1, liveOpponents(player, game));
   const position = positionEdge(player, game);
   const inPosition = position > 0;
+  const posBias = preflopPositionBias(player, game);
   const rangeText = analysis.ranges.map(entry =>
     `${entry.opponent.name}: ${entry.range.label}`
   ).join(', ');
@@ -399,7 +414,7 @@ function decideAction(player, game) {
 
   const potOdds = toCall / (pot + toCall);
 
-  if (equity > 0.66 + 0.03 * opponents - position * 0.2 &&
+  if (equity > 0.66 + 0.03 * opponents - position * 0.2 - posBias * 0.6 &&
       player.chips > toCall &&
       roll < 0.3 + 0.5 * p.aggression) {
     const raiseTo = sizedRaiseTo(equity > 0.85 ? 1 : 0.75, false);
@@ -422,12 +437,12 @@ function decideAction(player, game) {
     }
   }
 
-  const slack = (p.looseness - 1) * 0.06 + position * 0.12;
+  const slack = (p.looseness - 1) * 0.06 + position * 0.12 + posBias;
   if (equity + slack >= potOdds) {
     return decision('call', { potOdds, reason: 'equity beats price', ...meta });
   }
 
-  if (toCall <= bigBlind && equity > 0.18 && roll < 0.5) {
+  if (toCall <= bigBlind && equity > 0.18 - posBias && roll < 0.5) {
     return decision('call', { potOdds, reason: 'cheap price', ...meta });
   }
 

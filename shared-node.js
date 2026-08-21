@@ -40,5 +40,6 @@ module.exports = {
   makePersonality: ctx.makePersonality,
   decideAction: ctx.decideAction,
   drawStrength: ctx.drawStrength,
-  scaryBoardCard: ctx.scaryBoardCard
+  scaryBoardCard: ctx.scaryBoardCard,
+  preflopPositionBias: ctx.preflopPositionBias
 };
